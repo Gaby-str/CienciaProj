@@ -161,29 +161,6 @@ class Animal(): #posicion inicial por defecto 0,0
 conejo = Animal()
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 # Función para calcular la difusión
 def diffusion_step(grid):
     new_grid = grid.copy()
