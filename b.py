@@ -3,7 +3,7 @@ from tkinter import ttk
 import numpy as np
 import random
 import math
-
+import matplotlib.pyplot as plt
 
 #---------------------------------------------------------------------
 
@@ -31,11 +31,22 @@ class Animal(): #posicion inicial por defecto 0,0
         self.estoy_presente = True
 
         self.tipo = "hill_climbing"
-        self.tipos_list = [ "random", "hill_climbing"]
+        self.tipos_list = ["random", "hill_climbing", "dead_reckoning"]
+        self.target_position = None
+         # Atributos para el movimiento en espiral
+        self.spiral_steps = 1
+        self.spiral_direction = 0
+        self.spiral_count = 0
+        self.spiral_dx = [1, 0, -1, 0]  # derecha, abajo, izquierda, arriba
+        self.spiral_dy = [0, 1, 0, -1]
+        self.spiral_x = self.posx
+        self.spiral_y = self.posy
+
     
     def mover_random(self): #calcula el movimiento de forma aleatoria
         step = random.choice(self.opciones)
         
+        # Move the object according to the direction
         if step == "derecha" and self.posx<cols-1:
             self.posx += 1
         elif step == "izquierda" and self.posx>0:
@@ -123,6 +134,75 @@ class Animal(): #posicion inicial por defecto 0,0
         # Mueve en la dirección seleccionada
         self.mover_a(key_mayor)
 
+    def mover_dead_reckoning(self):
+        """
+        Movimiento basado en dead reckoning hacia la posición objetivo.
+        """
+        if self.target_position is None:
+            return  # No hay posición objetivo para moverse
+
+        dx = self.target_position[0] - self.posx
+        dy = self.target_position[1] - self.posy
+
+        if dx != 0:
+            step_x = int(dx / abs(dx))  # -1 o 1
+        else:
+            step_x = 0
+        if dy != 0:
+            step_y = int(dy / abs(dy))  # -1 o 1
+        else:
+            step_y = 0
+
+        # Mueve diagonalmente hacia la posición objetivo
+        new_x = self.posx + step_x
+        new_y = self.posy + step_y
+
+        # Asegura que las nuevas posiciones estén dentro de los límites
+        if 0 <= new_x < cols:
+            self.posx = new_x
+        if 0 <= new_y < rows:
+            self.posy = new_y
+
+    def generar_circulo(self, centro, radio):
+        x0, y0 = centro
+        posiciones = []
+
+        # Generar posiciones en los bordes del cuadrado
+        for x in range(x0 - radio, x0 + radio + 1):
+            y = y0 - radio
+            if 0 <= x < cols and 0 <= y < rows:
+                posiciones.append((x, y))
+            y = y0 + radio
+            if 0 <= x < cols and 0 <= y < rows:
+                posiciones.append((x, y))
+        for y in range(y0 - radio + 1, y0 + radio):
+            x = x0 - radio
+            if 0 <= x < cols and 0 <= y < rows:
+                posiciones.append((x, y))
+            x = x0 + radio
+            if 0 <= x < cols and 0 <= y < rows:
+                posiciones.append((x, y))
+
+        return posiciones
+
+    def mover_en_espiral(self, centro):
+        # Mover en la dirección actual
+        self.posx += self.spiral_dx[self.spiral_direction]
+        self.posy += self.spiral_dy[self.spiral_direction]
+        self.spiral_count += 1
+
+        # Verificar límites
+        self.posx = max(0, min(self.posx, cols - 1))
+        self.posy = max(0, min(self.posy, rows - 1))
+
+        # Cambiar de dirección
+        if self.spiral_count == self.spiral_steps:
+            self.spiral_count = 0
+            self.spiral_direction = (self.spiral_direction + 1) % 4
+            if self.spiral_direction == 0 or self.spiral_direction == 2:
+                self.spiral_steps += 1  # Incrementar pasos después de dos direcciones
+
+
     def mover_a(self, donde): #actualiza la nueva posicion dado el calculo de movimiento previo
         if donde == "arriba":
             self.posy -= 1
@@ -145,6 +225,7 @@ class Animal(): #posicion inicial por defecto 0,0
             self.posx -= 1
             self.posy += 1
         
+
     def actual(self): #obtiene la posicion actual del conejo
         if self.estoy_presente:
             return [[self.posx, self.posy]]
@@ -157,8 +238,36 @@ class Animal(): #posicion inicial por defecto 0,0
              self.mover_random()
         elif self.tipo == "hill_climbing":
             self.mover_hill_climbing()
+        elif self.tipo == "dead_reckoning":
+            self.mover_dead_reckoning()
+        elif self.tipo == "espiral":
+            self.mover_en_espiral(self.centro_busqueda)
+
 
 conejo = Animal()
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 # Función para calcular la difusión
@@ -220,7 +329,7 @@ def run_simulation(hay_animal, movimiento, pos_inicial, iteraciones, mantener_ex
     global keep_espectativa_1
     comido = False
     com = []
-
+    distances = []  # Para almacenar las distancias durante la fase 3
 
     print(f"Hay_animal: {hay_animal}")
     if hay_animal:
@@ -228,53 +337,138 @@ def run_simulation(hay_animal, movimiento, pos_inicial, iteraciones, mantener_ex
         conejo.tipo = movimiento
         conejo.posx = pos_inicial[0]
         conejo.posy = pos_inicial[1]
+
+        # Solo inicializamos variables relacionadas con 'dead_reckoning' si ese es el tipo de movimiento
+        if conejo.tipo == "dead_reckoning":
+            if comida_celdas:
+                conejo.target_position = comida_celdas[0]
+            else:
+                conejo.target_position = [10, 10]  # Posición objetivo por defecto
+
+            # Inicializar variables para el movimiento en espiral
+            conejo.centro_busqueda = conejo.target_position
+            conejo.spiral_steps = 1
+            conejo.spiral_direction = 0
+            conejo.spiral_count = 0
+
         print(f"posx: {conejo.posx}, - posy: {conejo.posy}")
     else:
         conejo.estoy_presente = False
-    
-    for t in range(iteraciones):
+
+    phase = 1  # Fase de la simulación
+    time_steps = 0  # Contador de pasos de tiempo
+
+    while time_steps < iteraciones:
         grid = diffusion_step(grid)
-        print("Maximo: ", grid.max(), " - Mínimo: ", grid.min())
+        print("Máximo: ", grid.max(), " - Mínimo: ", grid.min())
 
         if hay_animal:
-            conejo.mover()
+            conejo.mover()  # El método mover maneja el movimiento según conejo.tipo
 
-            if conejo.actual() == comida_celdas:
-                #encontro comida
-                x, y = conejo.actual()[0]
-                com = [x,y]
-                grid[x, y] = 1  #establece el valor de espectativa en 1
-                comida_celdas.remove(conejo.actual()[0]) #consume la comida
+            if [conejo.posx, conejo.posy] in comida_celdas:
+                # Encontró comida
+                x, y = conejo.posx, conejo.posy
+                com = [x, y]
+                grid[x, y] = 1  # Establece el valor de expectativa en 1
+                comida_celdas.remove([x, y])  # Consume la comida
                 comido = True
 
-            else:
-                #No hay comida aca
-                x, y = conejo.actual()[0] #obitne posicion actual del conejo
-                grid[x, y] = 0  #( Comida en el centro) Establece ese lugar en 0 de espectativa
+                # Mantiene la memoria del sector donde encontró la comida
+                grid[com[0], com[1]] = 1  # Establece el valor de expectativa en 1
+                keep_espectativa_1 = [com[0], com[1]]
 
-            #ESTO HACE QUE EL CONEJO MANTENGA LA MEMORIA DEL SECTOR DONDE ENCONTRO LA COMIDA
-            #Provoca que los valores de expectativa seteado en el sector de la comida se extienda alrededor
-                #de lo contrario este se perdería y el conejo perdería total memoria de que cerca de ese lugar hubo comida
-            if comido:
-                grid[com[0], com[1]] = 1  #establece el valor de espectativa en 1
-                keep_espectativa_1 = conejo.actual()[0]
-
-                #Elimina el animal ya que este se va
+                # El animal se retira después de encontrar la comida
                 conejo.estoy_presente = False
-            
-        #Mantiene la espectativa de la comida encontrada en 1
+
+                print(f"El animal encontró la comida en la posición: {com}")
+
+                # Iniciar fase 2
+                phase = 2
+                diffusion_time = 30  # Tiempo de difusión sin el animal
+                time_counter = 0
+                hay_animal = False  # El animal se retira temporalmente
+                continue  # Ir al siguiente paso del bucle
+
+            else:
+                # No hay comida aquí
+                x, y = conejo.posx, conejo.posy  # Obtiene la posición actual del animal
+                grid[x, y] = 0  # Establece ese lugar en 0 de expectativa
+
+                # Verificar si el animal llegó a la posición esperada y no encontró comida
+                # Solo si el tipo de movimiento es 'dead_reckoning'
+                if conejo.tipo == "dead_reckoning":
+                    if [conejo.posx, conejo.posy] == conejo.target_position:
+                        # Llegó al lugar esperado pero no encontró comida
+                        print("No encontró la comida en la posición esperada.")
+                        # Cambiar el tipo de movimiento a 'espiral'
+                        conejo.tipo = 'espiral'
+                        conejo.centro_busqueda = [conejo.posx, conejo.posy]
+                        # Reiniciar variables para el movimiento en espiral
+                        conejo.spiral_steps = 1
+                        conejo.spiral_direction = 0
+                        conejo.spiral_count = 0
+                # Si el animal no está utilizando 'dead_reckoning', continúa con su movimiento original
+                else:
+                    # El animal continúa moviéndose según su tipo de movimiento inicial
+                    pass  # No se realiza ninguna acción adicional
+
+        # Mantiene la expectativa de la comida encontrada en 1
         if keep_espectativa_1 != [] and mantener_expectativa_1:
-            grid[keep_espectativa_1[0], keep_espectativa_1[1]] = 1  #establece el valor de espectativa en 1
-                
+            grid[keep_espectativa_1[0], keep_espectativa_1[1]] = 1  # Mantiene el valor de expectativa en 1
 
-
-        update_canvas(grid, canvas) #actualiza el coloreo
+        update_canvas(grid, canvas)
         root.update()  # Actualizar la ventana
-        root.after(1)  # Pausar por 100 ms para visualizar los cambios
+        root.after(100)  # Pausar por 100 ms para visualizar los cambios
 
-        #si encuentra la comida y la consume, se rompe el bucle para dar paso a la fase 2
-        if comido:
-            break
+        if phase == 2:
+            time_counter += 1
+            if time_counter >= diffusion_time:
+                # Iniciar fase 3
+                phase = 3
+                hay_animal = True
+                conejo.estoy_presente = True
+                conejo.posx = pos_inicial[0]
+                conejo.posy = pos_inicial[1]
+                conejo.tipo = movimiento  # Volver al tipo de movimiento inicial
+
+                # Solo inicializamos variables de 'dead_reckoning' si ese es el tipo de movimiento
+                if conejo.tipo == "dead_reckoning":
+                    if comida_celdas:
+                        conejo.target_position = comida_celdas[0]
+                    else:
+                        conejo.target_position = [10, 10]
+                    # Reiniciar variables para el movimiento en espiral
+                    conejo.spiral_steps = 1
+                    conejo.spiral_direction = 0
+                    conejo.spiral_count = 0
+                    conejo.centro_busqueda = conejo.target_position
+                    distances = []  # Reiniciar la lista de distancias
+                else:
+                    # Si no es 'dead_reckoning', no inicializamos variables de espiral
+                    pass
+
+                continue  # Continuar con el siguiente paso
+
+        if phase == 3 and hay_animal:
+            # Calcular la distancia desde la posición esperada solo si el tipo es 'dead_reckoning' o 'espiral'
+            if conejo.tipo in ['dead_reckoning', 'espiral']:
+                x0, y0 = conejo.centro_busqueda
+                distance = math.sqrt((conejo.posx - x0) ** 2 + (conejo.posy - y0) ** 2)
+                distances.append(distance)
+            else:
+                # Si no, la distancia puede ser desde una posición fija o no se calcula
+                pass
+
+        time_steps += 1
+
+    # Graficar la distancia en función del tiempo durante la fase 3
+    if distances:
+        plt.figure()
+        plt.plot(distances)
+        plt.xlabel('Paso de tiempo')
+        plt.ylabel('Distancia desde la posición esperada')
+        plt.title('Distancia del animal desde la posición esperada durante la fase 3')
+        plt.show()
 
 
 
@@ -289,7 +483,7 @@ def prueba():
         print(list(map(int, texto_pos_inicial.get().split(','))))
     except:
         pass
-    print("posicion_incial: ", texto_pos_inicial.get())
+    print("Posición inicial: ", texto_pos_inicial.get())
 
 # Configuración de la ventana Tkinter
 root = Tk()
@@ -298,48 +492,47 @@ root.title("Simulación de Difusión Manual")
 canvas = Canvas(root, width=cols * cell_size, height=rows * cell_size, bg="white")
 canvas.pack()
 
-
-#Check para activar o desactivar el animal
-animal_value = BooleanVar() #variable del check
-animal_value.set(True) #por defecto es True
-check_animal = ttk.Checkbutton(root, text="animal", variable=animal_value)
+# Check para activar o desactivar el animal
+animal_value = BooleanVar()  # Variable del check
+animal_value.set(True)  # Por defecto es True
+check_animal = ttk.Checkbutton(root, text="Animal", variable=animal_value)
 check_animal.pack()
 
-#Para seleccionar el tipo de movimiento
+# Para seleccionar el tipo de movimiento
 Label(root, text="Movimiento:").pack()
 lista_movimientos = ttk.Combobox(root, values=conejo.tipos_list)
-lista_movimientos.set(conejo.tipos_list[0]) #Por defecto tiene el primero de la lista
+lista_movimientos.set(conejo.tipos_list[0])  # Por defecto tiene el primero de la lista
 lista_movimientos.pack()
 
-#posicion inicial del animal
+# Posición inicial del animal
 texto_pos_inicial = StringVar()
-Label(root, text="Posicion inicial:").pack()
+Label(root, text="Posición inicial:").pack()
 posicion_inicial = ttk.Entry(root, textvariable=texto_pos_inicial)
-texto_pos_inicial.set("0,0") #posicion inicial por deecto
+texto_pos_inicial.set("0,0")  # Posición inicial por defecto
 posicion_inicial.pack()
 
-#numero de iteraciones
+# Número de iteraciones
 texto_iteraciones = StringVar()
 Label(root, text="Iteraciones:").pack()
 iteraciones = ttk.Entry(root, textvariable=texto_iteraciones)
-texto_iteraciones.set("800") #iteraciones por defecto
+texto_iteraciones.set("800")  # Iteraciones por defecto
 iteraciones.pack()
 
-#Check para mantener expectativa 1
-expectativa_value = BooleanVar() #variable del check
-expectativa_value.set(True) #por defecto es True
+# Check para mantener expectativa 1
+expectativa_value = BooleanVar()  # Variable del check
+expectativa_value.set(True)  # Por defecto es True
 check_expectativa = ttk.Checkbutton(root, text="Mantener expectativa", variable=expectativa_value)
 check_expectativa.pack()
 
-
-start_button = Button(root, text="Iniciar Simulación", command=lambda: run_simulation(animal_value.get(),
-                                                                                      lista_movimientos.get(),
-                                                                                      list(map(int, posicion_inicial.get().split(','))),
-                                                                                      int(iteraciones.get()),
-                                                                                      expectativa_value.get()))
+start_button = Button(root, text="Iniciar Simulación", command=lambda: run_simulation(
+    animal_value.get(),
+    lista_movimientos.get(),
+    list(map(int, posicion_inicial.get().split(','))),
+    int(iteraciones.get()),
+    expectativa_value.get()))
 start_button.pack()
 
-boton_prueba = Button(root, text="prueba", command=prueba)
+boton_prueba = Button(root, text="Prueba", command=prueba)
 boton_prueba.pack()
 
 root.mainloop()
