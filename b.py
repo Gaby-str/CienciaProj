@@ -8,8 +8,8 @@ import math
 #---------------------------------------------------------------------
 
 # Parámetros
-rows, cols = 40, 20
-diffusion_rate = 0.001
+rows, cols = 20, 20
+diffusion_rate = 0.05
 cell_size = 15  # Tamaño de cada celda en píxeles
 
 # Inicialización de la cuadrícula
@@ -17,15 +17,25 @@ grid = np.full((rows, cols), 0.1)
 #grid[rows // 2, cols // 2] = 0.1  # Comida en el centro
 
 # Lista para rastrear las celdas pintadas manualmente
-comida_celdas = [[4,3], [8,2], [11,2], [17,3], [25,3], [30,3], [40,3], [45,3],
-                 [4,17], [8,18], [11,16], [17,18], [25,16], [30,17], [40,15], [45,18]] #posiciones de comidas
+comida_celdas = [] #posiciones de comidas
 
 #HILL CLIMBING
 probabilidad_max = 1 #probabilidad de seguir Hill Climbing
 tolerancia = 0.001 #Tolerancia +- para considerar un valor dentro de la proxima escalada maxima
 
-keep_espectativa_1 = []
+#DIFUSIONES
+comida_expectativa = 1
+puerta_expectativa = 0.3
+
+keep_espectativa_1 = [] #para la expectativa de las comidas
+keep_espectativa_puerta = [] #para las expectativas de la puerta
 stop_var = False
+
+barrera = [[0,10], [1,10], [2,10], [3,10], [4,10], [5,10], [6,10], [7,10], [8,10], [9,10],
+            [10,10], [11,10], [12,10], [13,10]]
+
+puerta = [[14,10], [15,10], [16,10], [17,10], [18,10], [19,10], [20,10]]
+
 
 #---------------------------------------------------------------------
 
@@ -43,6 +53,7 @@ class Animal(): #posicion inicial por defecto 0,0
         self.historial = []
 
     def mover_random(self):  # Calcula el movimiento de forma aleatoria
+        global barrera
         movimientos_validos = []
 
         #filtra las opciones para no incluir movimientos que lleven a posiciones del historial
@@ -50,12 +61,17 @@ class Animal(): #posicion inicial por defecto 0,0
             nueva_posx, nueva_posy = self.calcular_nueva_posicion(step)
 
             #verifica si la nueva posicion esta dentro de los limites y no en el historial
-            if (nueva_posx, nueva_posy) not in self.historial and 0 <= nueva_posx < cols and 0 <= nueva_posy < cols:
+            if (nueva_posx, nueva_posy) not in self.historial and [nueva_posx, nueva_posy] not in barrera and 0 <= nueva_posx < rows and 0 <= nueva_posy < cols:
                 movimientos_validos.append(step)
 
         #si no hay movimientos validos, se puede mover a cualquier lugar
         if not movimientos_validos:
-            movimientos_validos = self.opciones
+            #pero se asegura que siga dentro de los limites de la cuadricula
+            #ademas de no traspasar la barrera
+            for step in self.opciones:
+                nueva_posx, nueva_posy = self.calcular_nueva_posicion(step)
+                if 0 <= nueva_posx < rows and 0 <= nueva_posy < cols and [nueva_posx, nueva_posy] not in barrera:
+                    movimientos_validos.append(step)
 
         #selecciona un movimiento al azar entre los válidos
         step = random.choice(movimientos_validos)
@@ -78,18 +94,32 @@ class Animal(): #posicion inicial por defecto 0,0
             nueva_posy += 1
         elif step == "arriba":
             nueva_posy -= 1
+        elif step == "arriba-izquierda":
+            nueva_posx -= 1
+            nueva_posy -= 1
+        elif step == "arriba-derecha":
+            nueva_posx += 1
+            nueva_posy -= 1
+        elif step == "abajo-derecha":
+            nueva_posx += 1
+            nueva_posy += 1
+        elif step == "abajo-izquierda":
+            nueva_posx -= 1
+            nueva_posy += 1
+        
         return nueva_posx, nueva_posy
 
     def actualizar_historial(self):
         """Guarda la posición actual en el historial, eliminando la más antigua si excede 5 posiciones."""
         self.historial.append((self.posx, self.posy))
-        if len(self.historial) > 10: #limite maximo del historial de movimientos
+        if len(self.historial) > 15: #limite maximo del historial de movimientos
             self.historial.pop(0)  #elimina la posicion mas antigua
 
 
 
     #calcula el movimiento basado en Hill Climbing
     def mover_hill_climbing(self):
+        global barrera
         """
         Movimiento Hill Climbing con probabilidad de explorar otras celdas
         y rango de tolerancia para valores cercanos al máximo.
@@ -108,28 +138,29 @@ class Animal(): #posicion inicial por defecto 0,0
         }
 
         # Obtiene los valores de cada posición, considerando los límites del grid
-        if self.posx < cols - 1:
+        if self.posx < cols - 1 and [self.posx + 1, self.posy] not in barrera:
             valores["derecha"] = round(grid[self.posx + 1, self.posy], 3)  # derecha
 
-        if self.posx > 0:
+        if self.posx > 0 and [self.posx - 1, self.posy] not in barrera:
             valores["izquierda"] = round(grid[self.posx - 1, self.posy], 3)  # izquierda
 
-        if self.posy < cols - 1:
+        if self.posy < cols - 1 and [self.posx, self.posy + 1] not in barrera:
             valores["abajo"] = round(grid[self.posx, self.posy + 1], 3)  # abajo
 
-            if self.posx < cols - 1:
+            if self.posx < cols - 1 and [self.posx + 1, self.posy + 1] not in barrera:
                 valores["abajo-derecha"] = round(grid[self.posx + 1, self.posy + 1], 3)  # abajo-derecha
 
-            if self.posx > 0:
+            if self.posx > 0 and [self.posx - 1, self.posy + 1] not in barrera:
                 valores["abajo-izquierda"] = round(grid[self.posx - 1, self.posy + 1], 3)  # abajo-izquierda
 
-        if self.posy > 0:
+        if self.posy > 0 and [self.posx, self.posy - 1] not in barrera:
             valores["arriba"] = round(grid[self.posx, self.posy - 1], 3)  # arriba
 
-            if self.posx < cols - 1:
+            print(f"BARRERA-c: {[self.posx + 1, self.posy - 1]}")
+            if self.posx < cols - 1 and [self.posx + 1, self.posy - 1] not in barrera:
                 valores["arriba-derecha"] = round(grid[self.posx + 1, self.posy - 1], 3)  # arriba-derecha
 
-            if self.posx > 0:
+            if self.posx > 0 and [self.posx - 1, self.posy - 1] not in barrera:
                 valores["arriba-izquierda"] = round(grid[self.posx - 1, self.posy - 1], 3)  # arriba-izquierda
 
         # Encuentra el valor máximo de las posibles direcciones
@@ -144,6 +175,9 @@ class Animal(): #posicion inicial por defecto 0,0
         ]
         print("Opciones cercanas al máximo:", opciones_cercanas)
 
+        #elimina las nuevas posiciones que cooincidan con la barrera
+
+
         # Decide si elegir la opción máxima o explorar
         if random.random() < probabilidad_max:
             # Elige entre las mejores opciones (dentro del rango)
@@ -151,11 +185,11 @@ class Animal(): #posicion inicial por defecto 0,0
             print("Decisión: Tomar una opción cercana al máximo.")
         else:
             # Elige entre todas las opciones válidas aleatoriamente
-            opciones_validas = [key for key, valor in valores.items() if valor != -1]
+            opciones_validas = [key for key, valor in valores.items() if valor != -1 and list(self.calcular_nueva_posicion(key)) not in barrera]
             key_mayor = random.choice(opciones_validas)
             print("Decisión: Explorar otra opción válida.")
         
-        print("Dirección elegida:", key_mayor)
+        print(f"Dirección elegida: {key_mayor} - {self.calcular_nueva_posicion(key_mayor)}")
 
         # Mueve en la dirección seleccionada
         self.mover_a(key_mayor)
@@ -240,6 +274,23 @@ def update_canvas(grid, canvas):
         #print(x0,"",y0,"",x1,"",y1)
         canvas.create_rectangle(x0, y0, x1, y1, fill="green", outline="")
 
+    #BARRERA
+    # Dibujar celdas pintadas manualmente en una capa separada
+    for i,j in barrera:
+        x0, y0 = j * cell_size, i * cell_size #calcula las posiciones físicas segun el tamano de la malla
+        x1, y1 = x0 + cell_size, y0 + cell_size
+        #print(x0,"",y0,"",x1,"",y1)
+        canvas.create_rectangle(x0, y0, x1, y1, fill="red", outline="")
+
+    #PUERTA
+    # Dibujar celdas pintadas manualmente en una capa separada
+    for i,j in puerta:
+        x0, y0 = j * cell_size, i * cell_size #calcula las posiciones físicas segun el tamano de la malla
+        x1, y1 = x0 + cell_size, y0 + cell_size
+        #print(x0,"",y0,"",x1,"",y1)
+        canvas.create_rectangle(x0, y0, x1, y1, fill="cyan", outline="")
+
+
     #ANIMAL
     # Dibujar celdas pintadas manualmente en una capa separada
     if conejo.estoy_presente:
@@ -256,8 +307,23 @@ def run_simulation(hay_animal, movimiento, pos_inicial, iteraciones, mantener_ex
     global grid
     global keep_espectativa_1
     global stop_var
+    global comida_celdas
+    global barrera, puerta
     todo_comido = False
     com = []
+
+    try:
+        comida_celdas = [list(map(int, comida_.get().split(',')))]
+    except:
+        pass
+
+    if not celdas_value.get():
+        barrera = []
+        puerta = []
+    else:
+        barrera = [[0,10], [1,10], [2,10], [3,10], [4,10], [5,10], [6,10], [7,10], [8,10], [9,10],
+            [10,10], [11,10], [12,10], [13,10]]
+        puerta = [[14,10], [15,10], [16,10], [17,10], [18,10], [19,10], [20,10]]
 
 
     print(f"Hay_animal: {hay_animal}")
@@ -282,7 +348,7 @@ def run_simulation(hay_animal, movimiento, pos_inicial, iteraciones, mantener_ex
                 #encontro comida
                 x, y = conejo.actual()[0]
                 com = [x,y]
-                grid[x, y] = 1  #establece el valor de espectativa en 1
+                grid[x, y] = comida_expectativa  #establece el valor de espectativa en 1
                 comida_celdas.remove(conejo.actual()[0]) #consume la comida
                 keep_espectativa_1.append(conejo.actual()[0])
                 
@@ -295,13 +361,20 @@ def run_simulation(hay_animal, movimiento, pos_inicial, iteraciones, mantener_ex
                 x, y = conejo.actual()[0] #obitne posicion actual del conejo
                 grid[x, y] = 0  #( Comida en el centro) Establece ese lugar en 0 de espectativa
 
+
+            if conejo.actual()[0] in puerta and mantener_expectativa_1:
+                grid[x, y] = puerta_expectativa  #establece el valor de espectativa en puerta_expectativa
+                keep_espectativa_puerta.append(conejo.actual()[0])
+                #pasó por una puerta
+
+
+
+
             #ESTO HACE QUE EL CONEJO MANTENGA LA MEMORIA DEL SECTOR DONDE ENCONTRO LA COMIDA
             #Provoca que los valores de expectativa seteado en el sector de la comida se extienda alrededor
                 #de lo contrario este se perdería y el conejo perdería total memoria de que cerca de ese lugar hubo comida
 
-            if mantener_expectativa_1:
-                for y,x in keep_espectativa_1:
-                    grid[y,x] = 1
+        
 
 
             if todo_comido:
@@ -311,11 +384,13 @@ def run_simulation(hay_animal, movimiento, pos_inicial, iteraciones, mantener_ex
                 """
                 #Elimina el animal ya que este se va
                 conejo.estoy_presente = False
-            
-        #Mantiene la espectativa de la comida encontrada en 1
-        if keep_espectativa_1 != [] and mantener_expectativa_1:
+        if mantener_expectativa_1:
             for y,x in keep_espectativa_1:
-                grid[y,x] = 1
+                grid[y,x] = comida_expectativa
+
+        if mantener_expectativa_1:
+            for y,x in keep_espectativa_puerta:
+                grid[y,x] = puerta_expectativa
                 
 
 
@@ -332,6 +407,7 @@ def run_simulation(hay_animal, movimiento, pos_inicial, iteraciones, mantener_ex
 def stop_simulation():
     global stop_var
     stop_var = True
+
     
 
 
@@ -376,6 +452,13 @@ posicion_inicial = ttk.Entry(root, textvariable=texto_pos_inicial)
 texto_pos_inicial.set("0,0") #posicion inicial por deecto
 posicion_inicial.pack()
 
+#comida
+texto_comida = StringVar()
+Label(root, text="Commida:").pack()
+comida_ = ttk.Entry(root, textvariable=texto_comida)
+texto_comida.set("") #mspasos por defecto
+comida_.pack()
+
 
 #numero de iteraciones
 texto_iteraciones = StringVar()
@@ -397,13 +480,21 @@ expectativa_value.set(True) #por defecto es True
 check_expectativa = ttk.Checkbutton(root, text="Mantener expectativa", variable=expectativa_value)
 check_expectativa.pack()
 
+#Check para celdas
+celdas_value = BooleanVar() #variable del check
+celdas_value.set(True) #por defecto es True
+check_celdas = ttk.Checkbutton(root, text="Mantener celdas", variable=celdas_value)
+check_celdas.pack()
+
 
 start_button = Button(root, text="Iniciar Simulación", command=lambda: run_simulation(animal_value.get(),
                                                                                       lista_movimientos.get(),
                                                                                       list(map(int, posicion_inicial.get().split(','))),
                                                                                       int(iteraciones.get()),
                                                                                       expectativa_value.get(),
-                                                                                      int(texto_mspasos.get())))
+                                                                                      int(texto_mspasos.get())
+                                                                                      
+                                                                                      ))
 start_button.pack()
 
 stop_button = Button(root, text="Detener Simulación", command=stop_simulation)
