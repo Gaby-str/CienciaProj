@@ -8,18 +8,24 @@ import math
 #---------------------------------------------------------------------
 
 # Parámetros
-rows, cols = 20, 20
-diffusion_rate = 0.05
-cell_size = 20  # Tamaño de cada celda en píxeles
+rows, cols = 40, 20
+diffusion_rate = 0.001
+cell_size = 15  # Tamaño de cada celda en píxeles
 
 # Inicialización de la cuadrícula
 grid = np.full((rows, cols), 0.1)
 #grid[rows // 2, cols // 2] = 0.1  # Comida en el centro
 
 # Lista para rastrear las celdas pintadas manualmente
-comida_celdas = [[10,10]] #posiciones de comidas
+comida_celdas = [[4,3], [8,2], [11,2], [17,3], [25,3], [30,3], [40,3], [45,3],
+                 [4,17], [8,18], [11,16], [17,18], [25,16], [30,17], [40,15], [45,18]] #posiciones de comidas
+
+#HILL CLIMBING
+probabilidad_max = 1 #probabilidad de seguir Hill Climbing
+tolerancia = 0.001 #Tolerancia +- para considerar un valor dentro de la proxima escalada maxima
 
 keep_espectativa_1 = []
+stop_var = False
 
 #---------------------------------------------------------------------
 
@@ -32,27 +38,58 @@ class Animal(): #posicion inicial por defecto 0,0
 
         self.tipo = "hill_climbing"
         self.tipos_list = [ "random", "hill_climbing"]
-    
-    def mover_random(self): #calcula el movimiento de forma aleatoria
-        step = random.choice(self.opciones)
-        
-        if step == "derecha" and self.posx<cols-1:
-            self.posx += 1
-        elif step == "izquierda" and self.posx>0:
-            self.posx -= 1
-        elif step == "abajo" and self.posy<cols-1:
-            self.posy += 1
-        elif step == "arriba" and self.posy>0:
-            self.posy -= 1
-        
-        print(self.posx," ", self.posy," ", step)
-        
+
+        # Historial de las últimas 5 posiciones visitadas
+        self.historial = []
+
+    def mover_random(self):  # Calcula el movimiento de forma aleatoria
+        movimientos_validos = []
+
+        #filtra las opciones para no incluir movimientos que lleven a posiciones del historial
+        for step in self.opciones:
+            nueva_posx, nueva_posy = self.calcular_nueva_posicion(step)
+
+            #verifica si la nueva posicion esta dentro de los limites y no en el historial
+            if (nueva_posx, nueva_posy) not in self.historial and 0 <= nueva_posx < cols and 0 <= nueva_posy < cols:
+                movimientos_validos.append(step)
+
+        #si no hay movimientos validos, se puede mover a cualquier lugar
+        if not movimientos_validos:
+            movimientos_validos = self.opciones
+
+        #selecciona un movimiento al azar entre los válidos
+        step = random.choice(movimientos_validos)
+        self.posx, self.posy = self.calcular_nueva_posicion(step)
+
+        #actualiza el historial
+        self.actualizar_historial()
+
+        print(self.posx, " ", self.posy, " ", step)
         return [self.posx, self.posy, step]
 
+    def calcular_nueva_posicion(self, step): #calcula la posible posicion en el grid dada una direccion
+        """Calcula la nueva posición según el paso dado."""
+        nueva_posx, nueva_posy = self.posx, self.posy
+        if step == "derecha":
+            nueva_posx += 1
+        elif step == "izquierda":
+            nueva_posx -= 1
+        elif step == "abajo":
+            nueva_posy += 1
+        elif step == "arriba":
+            nueva_posy -= 1
+        return nueva_posx, nueva_posy
+
+    def actualizar_historial(self):
+        """Guarda la posición actual en el historial, eliminando la más antigua si excede 5 posiciones."""
+        self.historial.append((self.posx, self.posy))
+        if len(self.historial) > 10: #limite maximo del historial de movimientos
+            self.historial.pop(0)  #elimina la posicion mas antigua
+
+
+
     #calcula el movimiento basado en Hill Climbing
-    def mover_hill_climbing(self, probabilidad_max=0.9 #probabilidad de seguir Hill Climbing
-                                , tolerancia=0.002 #Tolerancia +- para considerar un valor dentro de la proxima escalada maxima
-                                ):
+    def mover_hill_climbing(self):
         """
         Movimiento Hill Climbing con probabilidad de explorar otras celdas
         y rango de tolerancia para valores cercanos al máximo.
@@ -189,7 +226,7 @@ def update_canvas(grid, canvas):
             intensity = int((grid[i, j] / fixed_max) * 255) if fixed_max > 0 else 0
             """
 
-            intensity = int((grid[j,i] / 1) * 255) if 1 > 0 else 0
+            intensity = int((grid[i,j] / 1) * 255) if 1 > 0 else 0
             color = f"#{intensity:02x}{intensity:02x}{intensity:02x}"  # Color en escala de grises
             x0, y0 = j * cell_size, i * cell_size
             x1, y1 = x0 + cell_size, y0 + cell_size
@@ -197,7 +234,7 @@ def update_canvas(grid, canvas):
     
     #COMIDA
     # Dibujar celdas pintadas manualmente en una capa separada
-    for j,i in comida_celdas:
+    for i,j in comida_celdas:
         x0, y0 = j * cell_size, i * cell_size #calcula las posiciones físicas segun el tamano de la malla
         x1, y1 = x0 + cell_size, y0 + cell_size
         #print(x0,"",y0,"",x1,"",y1)
@@ -206,7 +243,7 @@ def update_canvas(grid, canvas):
     #ANIMAL
     # Dibujar celdas pintadas manualmente en una capa separada
     if conejo.estoy_presente:
-        for j,i in conejo.actual():
+        for i,j in conejo.actual():
             x0, y0 = j * cell_size, i * cell_size #calcula las posiciones físicas segun el tamano de la malla
             x1, y1 = x0 + cell_size, y0 + cell_size
             #print(x0,"",y0,"",x1,"",y1)
@@ -215,10 +252,11 @@ def update_canvas(grid, canvas):
         print("No hay animel para dibujar")
 
 # Función para ejecutar la simulación paso a paso
-def run_simulation(hay_animal, movimiento, pos_inicial, iteraciones, mantener_expectativa_1):
+def run_simulation(hay_animal, movimiento, pos_inicial, iteraciones, mantener_expectativa_1, mspasos):
     global grid
     global keep_espectativa_1
-    comido = False
+    global stop_var
+    todo_comido = False
     com = []
 
 
@@ -239,13 +277,18 @@ def run_simulation(hay_animal, movimiento, pos_inicial, iteraciones, mantener_ex
         if hay_animal:
             conejo.mover()
 
-            if conejo.actual() == comida_celdas:
+            print(comida_celdas)
+            if conejo.actual()[0] in comida_celdas:
                 #encontro comida
                 x, y = conejo.actual()[0]
                 com = [x,y]
                 grid[x, y] = 1  #establece el valor de espectativa en 1
                 comida_celdas.remove(conejo.actual()[0]) #consume la comida
-                comido = True
+                keep_espectativa_1.append(conejo.actual()[0])
+                
+
+                if comida_celdas == []: #se acabo toda la comida
+                    todo_comido = True
 
             else:
                 #No hay comida aca
@@ -255,26 +298,41 @@ def run_simulation(hay_animal, movimiento, pos_inicial, iteraciones, mantener_ex
             #ESTO HACE QUE EL CONEJO MANTENGA LA MEMORIA DEL SECTOR DONDE ENCONTRO LA COMIDA
             #Provoca que los valores de expectativa seteado en el sector de la comida se extienda alrededor
                 #de lo contrario este se perdería y el conejo perdería total memoria de que cerca de ese lugar hubo comida
-            if comido:
+
+            if mantener_expectativa_1:
+                for y,x in keep_espectativa_1:
+                    grid[y,x] = 1
+
+
+            if todo_comido:
+                """
                 grid[com[0], com[1]] = 1  #establece el valor de espectativa en 1
                 keep_espectativa_1 = conejo.actual()[0]
-
+                """
                 #Elimina el animal ya que este se va
                 conejo.estoy_presente = False
             
         #Mantiene la espectativa de la comida encontrada en 1
         if keep_espectativa_1 != [] and mantener_expectativa_1:
-            grid[keep_espectativa_1[0], keep_espectativa_1[1]] = 1  #establece el valor de espectativa en 1
+            for y,x in keep_espectativa_1:
+                grid[y,x] = 1
                 
 
 
         update_canvas(grid, canvas) #actualiza el coloreo
         root.update()  # Actualizar la ventana
-        root.after(1)  # Pausar por 100 ms para visualizar los cambios
+        root.after(mspasos)  # Pausar por 100 ms para visualizar los cambios
 
         #si encuentra la comida y la consume, se rompe el bucle para dar paso a la fase 2
-        if comido:
+        if todo_comido or stop_var:
+            stop_var = False
             break
+
+
+def stop_simulation():
+    global stop_var
+    stop_var = True
+    
 
 
 
@@ -318,12 +376,20 @@ posicion_inicial = ttk.Entry(root, textvariable=texto_pos_inicial)
 texto_pos_inicial.set("0,0") #posicion inicial por deecto
 posicion_inicial.pack()
 
+
 #numero de iteraciones
 texto_iteraciones = StringVar()
 Label(root, text="Iteraciones:").pack()
 iteraciones = ttk.Entry(root, textvariable=texto_iteraciones)
 texto_iteraciones.set("800") #iteraciones por defecto
 iteraciones.pack()
+
+#ms entre pasos
+texto_mspasos = StringVar()
+Label(root, text="mspasos:").pack()
+mspasos = ttk.Entry(root, textvariable=texto_mspasos)
+texto_mspasos.set("10") #mspasos por defecto
+mspasos.pack()
 
 #Check para mantener expectativa 1
 expectativa_value = BooleanVar() #variable del check
@@ -336,8 +402,12 @@ start_button = Button(root, text="Iniciar Simulación", command=lambda: run_simu
                                                                                       lista_movimientos.get(),
                                                                                       list(map(int, posicion_inicial.get().split(','))),
                                                                                       int(iteraciones.get()),
-                                                                                      expectativa_value.get()))
+                                                                                      expectativa_value.get(),
+                                                                                      int(texto_mspasos.get())))
 start_button.pack()
+
+stop_button = Button(root, text="Detener Simulación", command=stop_simulation)
+stop_button.pack()
 
 boton_prueba = Button(root, text="prueba", command=prueba)
 boton_prueba.pack()
