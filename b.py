@@ -9,12 +9,16 @@ import math
 
 # Parámetros
 rows, cols = 20, 20
-diffusion_rate = 0.05
+diffusion_rate = 0.1
 cell_size = 20  # Tamaño de cada celda en píxeles
 
 # Inicialización de la cuadrícula
-grid = np.full((rows, cols), 0.1)
+expectativa_inicial_uniforme = 0.1
+grid = np.full((rows, cols), expectativa_inicial_uniforme)
 #grid[rows // 2, cols // 2] = 0.1  # Comida en el centro
+
+probabilidad_max_hc = 1
+tolerancia_hc = 0
 
 # Lista para rastrear las celdas pintadas manualmente
 comida_celdas = [[10,10]] #posiciones de comidas
@@ -31,27 +35,76 @@ class Animal(): #posicion inicial por defecto 0,0
         self.estoy_presente = True
 
         self.tipo = "hill_climbing"
-        self.tipos_list = [ "random", "hill_climbing"]
-    
-    def mover_random(self): #calcula el movimiento de forma aleatoria
-        step = random.choice(self.opciones)
-        
-        if step == "derecha" and self.posx<cols-1:
-            self.posx += 1
-        elif step == "izquierda" and self.posx>0:
-            self.posx -= 1
-        elif step == "abajo" and self.posy<cols-1:
-            self.posy += 1
-        elif step == "arriba" and self.posy>0:
-            self.posy -= 1
-        
-        print(self.posx," ", self.posy," ", step)
-        
+        self.tipos_list = [ "random", "hill_climbing"]# Historial de las últimas 5 posiciones visitadas
+        self.historial = []
+
+    def mover_random(self):  # Calcula el movimiento de forma aleatoria
+        movimientos_validos = []
+
+        #filtra las opciones para no incluir movimientos que lleven a posiciones del historial
+        for step in self.opciones:
+            nueva_posx, nueva_posy = self.calcular_nueva_posicion(step)
+
+            #verifica si la nueva posicion esta dentro de los limites y no en el historial
+            if (nueva_posx, nueva_posy) not in self.historial and 0 <= nueva_posx < rows and 0 <= nueva_posy < cols:
+                movimientos_validos.append(step)
+
+        #si no hay movimientos validos, se puede mover a cualquier lugar
+        if not movimientos_validos:
+            #pero se asegura que siga dentro de los limites de la cuadricula
+            #ademas de no traspasar la barrera
+            for step in self.opciones:
+                nueva_posx, nueva_posy = self.calcular_nueva_posicion(step)
+                if 0 <= nueva_posx < rows and 0 <= nueva_posy < cols:
+                    movimientos_validos.append(step)
+
+        #selecciona un movimiento al azar entre los válidos
+        step = random.choice(movimientos_validos)
+        self.posx, self.posy = self.calcular_nueva_posicion(step)
+
+        #actualiza el historial
+        self.actualizar_historial()
+
+        print(self.posx, " ", self.posy, " ", step)
         return [self.posx, self.posy, step]
 
+    def calcular_nueva_posicion(self, step): #calcula la posible posicion en el grid dada una direccion
+        """Calcula la nueva posición según el paso dado."""
+        nueva_posx, nueva_posy = self.posx, self.posy
+        if step == "derecha":
+            nueva_posx += 1
+        elif step == "izquierda":
+            nueva_posx -= 1
+        elif step == "abajo":
+            nueva_posy += 1
+        elif step == "arriba":
+            nueva_posy -= 1
+        elif step == "arriba-izquierda":
+            nueva_posx -= 1
+            nueva_posy -= 1
+        elif step == "arriba-derecha":
+            nueva_posx += 1
+            nueva_posy -= 1
+        elif step == "abajo-derecha":
+            nueva_posx += 1
+            nueva_posy += 1
+        elif step == "abajo-izquierda":
+            nueva_posx -= 1
+            nueva_posy += 1
+        
+        return nueva_posx, nueva_posy
+
+    def actualizar_historial(self):
+        """Guarda la posición actual en el historial, eliminando la más antigua si excede 5 posiciones."""
+        self.historial.append((self.posx, self.posy))
+        if len(self.historial) > 15: #limite maximo del historial de movimientos
+            self.historial.pop(0)  #elimina la posicion mas antigua
+
+
+
     #calcula el movimiento basado en Hill Climbing
-    def mover_hill_climbing(self, probabilidad_max=0.9 #probabilidad de seguir Hill Climbing
-                                , tolerancia=0.002 #Tolerancia +- para considerar un valor dentro de la proxima escalada maxima
+    def mover_hill_climbing(self, probabilidad_max=probabilidad_max_hc #probabilidad de seguir Hill Climbing
+                                , tolerancia=tolerancia_hc #Tolerancia +- para considerar un valor dentro de la proxima escalada maxima
                                 ):
         """
         Movimiento Hill Climbing con probabilidad de explorar otras celdas
@@ -270,7 +323,7 @@ def run_simulation(hay_animal, movimiento, pos_inicial, iteraciones, mantener_ex
 
         update_canvas(grid, canvas) #actualiza el coloreo
         root.update()  # Actualizar la ventana
-        root.after(1)  # Pausar por 100 ms para visualizar los cambios
+        root.after(10)  # Pausar por 100 ms para visualizar los cambios
 
         #si encuentra la comida y la consume, se rompe el bucle para dar paso a la fase 2
         if comido:
@@ -291,55 +344,79 @@ def prueba():
         pass
     print("posicion_incial: ", texto_pos_inicial.get())
 
-# Configuración de la ventana Tkinter
+# Interfaz gráfica
 root = Tk()
 root.title("Simulación de Difusión Manual")
 
+# Canvas principal
 canvas = Canvas(root, width=cols * cell_size, height=rows * cell_size, bg="white")
 canvas.pack()
 
+# Contenedor para los controles y parámetros (debajo del canvas)
+bottom_frame = Frame(root, padx=10, pady=10)
+bottom_frame.pack(fill=X, expand=True)
 
-#Check para activar o desactivar el animal
-animal_value = BooleanVar() #variable del check
-animal_value.set(True) #por defecto es True
-check_animal = ttk.Checkbutton(root, text="animal", variable=animal_value)
+# Frame izquierdo (dentro del bottom_frame)
+left_frame = Frame(bottom_frame, padx=10, pady=10)
+left_frame.pack(side=LEFT, fill=Y)
+
+# Frame derecho (dentro del bottom_frame)
+right_frame = Frame(bottom_frame, padx=10, pady=10)
+right_frame.pack(side=RIGHT, fill=Y)
+
+# Controles en el frame izquierdo
+# Check para activar o desactivar el animal
+animal_value = BooleanVar()
+animal_value.set(True)
+check_animal = ttk.Checkbutton(left_frame, text="animal", variable=animal_value)
 check_animal.pack()
 
-#Para seleccionar el tipo de movimiento
-Label(root, text="Movimiento:").pack()
-lista_movimientos = ttk.Combobox(root, values=conejo.tipos_list)
-lista_movimientos.set(conejo.tipos_list[0]) #Por defecto tiene el primero de la lista
+# Para seleccionar el tipo de movimiento
+Label(left_frame, text="Movimiento:").pack()
+lista_movimientos = ttk.Combobox(left_frame, values=conejo.tipos_list)
+lista_movimientos.set(conejo.tipos_list[0])  # Por defecto tiene el primero de la lista
 lista_movimientos.pack()
 
-#posicion inicial del animal
+# Posición inicial del animal
 texto_pos_inicial = StringVar()
-Label(root, text="Posicion inicial:").pack()
-posicion_inicial = ttk.Entry(root, textvariable=texto_pos_inicial)
-texto_pos_inicial.set("0,0") #posicion inicial por deecto
+Label(left_frame, text="Posición inicial:").pack()
+posicion_inicial = ttk.Entry(left_frame, textvariable=texto_pos_inicial)
+texto_pos_inicial.set("0,0")  # posición inicial por defecto
 posicion_inicial.pack()
 
-#numero de iteraciones
+# Número de iteraciones
 texto_iteraciones = StringVar()
-Label(root, text="Iteraciones:").pack()
-iteraciones = ttk.Entry(root, textvariable=texto_iteraciones)
-texto_iteraciones.set("800") #iteraciones por defecto
+Label(left_frame, text="Iteraciones:").pack()
+iteraciones = ttk.Entry(left_frame, textvariable=texto_iteraciones)
+texto_iteraciones.set("800")  # iteraciones por defecto
 iteraciones.pack()
 
-#Check para mantener expectativa 1
-expectativa_value = BooleanVar() #variable del check
-expectativa_value.set(True) #por defecto es True
-check_expectativa = ttk.Checkbutton(root, text="Mantener expectativa", variable=expectativa_value)
+# Check para mantener expectativa 1
+expectativa_value = BooleanVar()
+expectativa_value.set(True)
+check_expectativa = ttk.Checkbutton(left_frame, text="Mantener expectativa", variable=expectativa_value)
 check_expectativa.pack()
 
-
-start_button = Button(root, text="Iniciar Simulación", command=lambda: run_simulation(animal_value.get(),
-                                                                                      lista_movimientos.get(),
-                                                                                      list(map(int, posicion_inicial.get().split(','))),
-                                                                                      int(iteraciones.get()),
-                                                                                      expectativa_value.get()))
+# Botón para iniciar la simulación
+start_button = Button(left_frame, text="Iniciar Simulación", command=lambda: run_simulation(
+    animal_value.get(),
+    lista_movimientos.get(),
+    list(map(int, posicion_inicial.get().split(','))),
+    int(iteraciones.get()),
+    expectativa_value.get()))
 start_button.pack()
 
-boton_prueba = Button(root, text="prueba", command=prueba)
+# Botón de prueba
+boton_prueba = Button(left_frame, text="prueba", command=prueba)
 boton_prueba.pack()
+
+# Labels centrados en el frame derecho
+Label(right_frame, text="Parámetros:", font=("Arial", 14, "bold")).pack(pady=10)
+
+Label(right_frame, text=f"expectativa_inicial_uniforme: {expectativa_inicial_uniforme}").pack(pady=5)
+Label(right_frame, text=f"difusion_rate: {diffusion_rate}").pack(pady=5)
+Label(right_frame, text=f"tamaño de la cuadrícula: {rows}x{cols}").pack(pady=5)
+Label(right_frame, text=f"Probabilidad HC: {probabilidad_max_hc}").pack(pady=5)
+Label(right_frame, text=f"Tolerancia HC: {tolerancia_hc}").pack(pady=5)
 
 root.mainloop()
