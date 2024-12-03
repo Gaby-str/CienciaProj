@@ -17,9 +17,10 @@ grid = np.full((rows, cols), 0.1)
 #grid[rows // 2, cols // 2] = 0.1  # Comida en el centro
 
 # Lista para rastrear las celdas pintadas manualmente
-comida_celdas = [[10,10]] #posiciones de comidas
+comida_celdas = [[5,10], [12,7]] #posiciones de comidas
 
 keep_espectativa_1 = []
+target = [[5,10], [0,0], [12,7], [0,0]]
 
 #---------------------------------------------------------------------
 
@@ -32,7 +33,7 @@ class Animal(): #posicion inicial por defecto 0,0
 
         self.tipo = "hill_climbing"
         self.tipos_list = ["random", "hill_climbing", "dead_reckoning"]
-        self.target_position = None
+        self.target_position = []
          # Atributos para el movimiento en espiral
         self.spiral_steps = 1
         self.spiral_direction = 0
@@ -61,8 +62,8 @@ class Animal(): #posicion inicial por defecto 0,0
         return [self.posx, self.posy, step]
 
     #calcula el movimiento basado en Hill Climbing
-    def mover_hill_climbing(self, probabilidad_max=0.9 #probabilidad de seguir Hill Climbing
-                                , tolerancia=0.002 #Tolerancia +- para considerar un valor dentro de la proxima escalada maxima
+    def mover_hill_climbing(self, probabilidad_max=1 #probabilidad de seguir Hill Climbing
+                                , tolerancia=0 #Tolerancia +- para considerar un valor dentro de la proxima escalada maxima
                                 ):
         """
         Movimiento Hill Climbing con probabilidad de explorar otras celdas
@@ -83,33 +84,34 @@ class Animal(): #posicion inicial por defecto 0,0
 
         # Obtiene los valores de cada posición, considerando los límites del grid
         if self.posx < cols - 1:
-            valores["derecha"] = round(grid[self.posx + 1, self.posy], 3)  # derecha
+            valores["derecha"] = grid[self.posx + 1, self.posy]  # derecha
 
         if self.posx > 0:
-            valores["izquierda"] = round(grid[self.posx - 1, self.posy], 3)  # izquierda
+            valores["izquierda"] = grid[self.posx - 1, self.posy]  # izquierda
 
         if self.posy < cols - 1:
-            valores["abajo"] = round(grid[self.posx, self.posy + 1], 3)  # abajo
+            valores["abajo"] = grid[self.posx, self.posy + 1]  # abajo
 
             if self.posx < cols - 1:
-                valores["abajo-derecha"] = round(grid[self.posx + 1, self.posy + 1], 3)  # abajo-derecha
+                valores["abajo-derecha"] = grid[self.posx + 1, self.posy + 1]  # abajo-derecha
 
             if self.posx > 0:
-                valores["abajo-izquierda"] = round(grid[self.posx - 1, self.posy + 1], 3)  # abajo-izquierda
+                valores["abajo-izquierda"] = grid[self.posx - 1, self.posy + 1]  # abajo-izquierda
 
         if self.posy > 0:
-            valores["arriba"] = round(grid[self.posx, self.posy - 1], 3)  # arriba
+            valores["arriba"] = grid[self.posx, self.posy - 1]  # arriba
 
             if self.posx < cols - 1:
-                valores["arriba-derecha"] = round(grid[self.posx + 1, self.posy - 1], 3)  # arriba-derecha
+                valores["arriba-derecha"] = grid[self.posx + 1, self.posy - 1]  # arriba-derecha
 
             if self.posx > 0:
-                valores["arriba-izquierda"] = round(grid[self.posx - 1, self.posy - 1], 3)  # arriba-izquierda
+                valores["arriba-izquierda"] = grid[self.posx - 1, self.posy - 1]  # arriba-izquierda
 
         # Encuentra el valor máximo de las posibles direcciones
         valor_mayor = max(valores.values())
         print("Valores completos:", valores)
         print("Valor mayor:", valor_mayor)
+        input()
 
         # Filtra las direcciones dentro del rango de tolerancia
         opciones_cercanas = [
@@ -117,6 +119,7 @@ class Animal(): #posicion inicial por defecto 0,0
             if valor_mayor - tolerancia <= valor <= valor_mayor + tolerancia
         ]
         print("Opciones cercanas al máximo:", opciones_cercanas)
+        input()
 
         # Decide si elegir la opción máxima o explorar
         if random.random() < probabilidad_max:
@@ -138,11 +141,12 @@ class Animal(): #posicion inicial por defecto 0,0
         """
         Movimiento basado en dead reckoning hacia la posición objetivo.
         """
+        print("dr")
         if self.target_position is None:
             return  # No hay posición objetivo para moverse
 
-        dx = self.target_position[0] - self.posx
-        dy = self.target_position[1] - self.posy
+        dx = self.target_position[0][0] - self.posx
+        dy = self.target_position[0][1] - self.posy
 
         if dx != 0:
             step_x = int(dx / abs(dx))  # -1 o 1
@@ -162,6 +166,9 @@ class Animal(): #posicion inicial por defecto 0,0
             self.posx = new_x
         if 0 <= new_y < rows:
             self.posy = new_y
+
+        if [new_x, new_y] == self.target_position[0]:
+            self.target_position.pop(0)
 
     def generar_circulo(self, centro, radio):
         x0, y0 = centro
@@ -341,12 +348,12 @@ def run_simulation(hay_animal, movimiento, pos_inicial, iteraciones, mantener_ex
         # Solo inicializamos variables relacionadas con 'dead_reckoning' si ese es el tipo de movimiento
         if conejo.tipo == "dead_reckoning":
             if comida_celdas:
-                conejo.target_position = comida_celdas[0]
+                conejo.target_position = target
             else:
                 conejo.target_position = [10, 10]  # Posición objetivo por defecto
 
             # Inicializar variables para el movimiento en espiral
-            conejo.centro_busqueda = conejo.target_position
+            conejo.centro_busqueda = conejo.target_position[0]
             conejo.spiral_steps = 1
             conejo.spiral_direction = 0
             conejo.spiral_count = 0
@@ -359,7 +366,6 @@ def run_simulation(hay_animal, movimiento, pos_inicial, iteraciones, mantener_ex
     time_steps = 0  # Contador de pasos de tiempo
 
     while time_steps < iteraciones:
-        grid = diffusion_step(grid)
         print("Máximo: ", grid.max(), " - Mínimo: ", grid.min())
 
         if hay_animal:
@@ -370,24 +376,17 @@ def run_simulation(hay_animal, movimiento, pos_inicial, iteraciones, mantener_ex
                 x, y = conejo.posx, conejo.posy
                 com = [x, y]
                 grid[x, y] = 1  # Establece el valor de expectativa en 1
-                comida_celdas.remove([x, y])  # Consume la comida
-                comido = True
+                if conejo.tipo != "dead_reckoning":
+                    comida_celdas.remove([x, y])  # Consume la comida
+                    comido = True
 
                 # Mantiene la memoria del sector donde encontró la comida
                 grid[com[0], com[1]] = 1  # Establece el valor de expectativa en 1
-                keep_espectativa_1 = [com[0], com[1]]
+                keep_espectativa_1.append([com[0], com[1]])
 
-                # El animal se retira después de encontrar la comida
-                conejo.estoy_presente = False
 
                 print(f"El animal encontró la comida en la posición: {com}")
 
-                # Iniciar fase 2
-                phase = 2
-                diffusion_time = 30  # Tiempo de difusión sin el animal
-                time_counter = 0
-                hay_animal = False  # El animal se retira temporalmente
-                continue  # Ir al siguiente paso del bucle
 
             else:
                 # No hay comida aquí
@@ -397,16 +396,10 @@ def run_simulation(hay_animal, movimiento, pos_inicial, iteraciones, mantener_ex
                 # Verificar si el animal llegó a la posición esperada y no encontró comida
                 # Solo si el tipo de movimiento es 'dead_reckoning'
                 if conejo.tipo == "dead_reckoning":
-                    if [conejo.posx, conejo.posy] == conejo.target_position:
+                    if [conejo.posx, conejo.posy] == conejo.target_position[0]:
                         # Llegó al lugar esperado pero no encontró comida
                         print("No encontró la comida en la posición esperada.")
                         # Cambiar el tipo de movimiento a 'espiral'
-                        conejo.tipo = 'espiral'
-                        conejo.centro_busqueda = [conejo.posx, conejo.posy]
-                        # Reiniciar variables para el movimiento en espiral
-                        conejo.spiral_steps = 1
-                        conejo.spiral_direction = 0
-                        conejo.spiral_count = 0
                 # Si el animal no está utilizando 'dead_reckoning', continúa con su movimiento original
                 else:
                     # El animal continúa moviéndose según su tipo de movimiento inicial
@@ -414,7 +407,8 @@ def run_simulation(hay_animal, movimiento, pos_inicial, iteraciones, mantener_ex
 
         # Mantiene la expectativa de la comida encontrada en 1
         if keep_espectativa_1 != [] and mantener_expectativa_1:
-            grid[keep_espectativa_1[0], keep_espectativa_1[1]] = 1  # Mantiene el valor de expectativa en 1
+            for x,y in keep_espectativa_1:
+                grid[x, y] = 1  # Mantiene el valor de expectativa en 1
 
         update_canvas(grid, canvas)
         root.update()  # Actualizar la ventana
@@ -460,6 +454,7 @@ def run_simulation(hay_animal, movimiento, pos_inicial, iteraciones, mantener_ex
                 pass
 
         time_steps += 1
+        grid = diffusion_step(grid)
 
     # Graficar la distancia en función del tiempo durante la fase 3
     if distances:
