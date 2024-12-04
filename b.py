@@ -25,7 +25,7 @@ tolerancia = 0.001 #Tolerancia +- para considerar un valor dentro de la proxima 
 
 #DIFUSIONES
 comida_expectativa = 1
-puerta_expectativa = 0.3
+puerta_expectativa = 0.9
 
 keep_espectativa_1 = [] #para la expectativa de las comidas
 keep_espectativa_puerta = [] #para las expectativas de la puerta
@@ -191,6 +191,13 @@ class Animal(): #posicion inicial por defecto 0,0
         
         print(f"Dirección elegida: {key_mayor} - {self.calcular_nueva_posicion(key_mayor)}")
 
+        for k in self.opciones:
+            x,y = self.calcular_nueva_posicion(k)
+            if [x,y] in comida_celdas:
+                print("COMIDAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA")
+                key_mayor = k
+
+
         # Mueve en la dirección seleccionada
         self.mover_a(key_mayor)
 
@@ -319,11 +326,17 @@ def run_simulation(hay_animal, movimiento, pos_inicial, iteraciones, mantener_ex
 
     if not celdas_value.get():
         barrera = []
-        puerta = []
     else:
         barrera = [[0,10], [1,10], [2,10], [3,10], [4,10], [5,10], [6,10], [7,10], [8,10], [9,10],
             [10,10], [11,10], [12,10], [13,10]]
+
+
+    if not puerta_value.get():
+        puerta = []
+    else:
         puerta = [[14,10], [15,10], [16,10], [17,10], [18,10], [19,10], [20,10]]
+
+    
 
 
     print(f"Hay_animal: {hay_animal}")
@@ -362,9 +375,10 @@ def run_simulation(hay_animal, movimiento, pos_inicial, iteraciones, mantener_ex
                 grid[x, y] = 0  #( Comida en el centro) Establece ese lugar en 0 de espectativa
 
 
-            if conejo.actual()[0] in puerta and mantener_expectativa_1:
+            if conejo.actual()[0] in puerta:
                 grid[x, y] = puerta_expectativa  #establece el valor de espectativa en puerta_expectativa
-                keep_espectativa_puerta.append(conejo.actual()[0])
+                if conejo.actual()[0] not in keep_espectativa_puerta:
+                    keep_espectativa_puerta.append(conejo.actual()[0])
                 #pasó por una puerta
 
 
@@ -485,6 +499,12 @@ celdas_value = BooleanVar() #variable del check
 celdas_value.set(True) #por defecto es True
 check_celdas = ttk.Checkbutton(root, text="Mantener celdas", variable=celdas_value)
 check_celdas.pack()
+
+#Check para puerta
+puerta_value = BooleanVar() #variable del check
+puerta_value.set(True) #por defecto es True
+check_puerta = ttk.Checkbutton(root, text="Mantener puerta", variable=puerta_value)
+check_puerta.pack()
 
 
 start_button = Button(root, text="Iniciar Simulación", command=lambda: run_simulation(animal_value.get(),
