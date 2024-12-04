@@ -9,15 +9,19 @@ import matplotlib.pyplot as plt
 
 # Parámetros
 rows, cols = 20, 20
-diffusion_rate = 0.05
+diffusion_rate = 0.1
 cell_size = 20  # Tamaño de cada celda en píxeles
 
 # Inicialización de la cuadrícula
-grid = np.full((rows, cols), 0.1)
+expectativa_inicial_uniforme = 0.1
+grid = np.full((rows, cols), expectativa_inicial_uniforme)
 #grid[rows // 2, cols // 2] = 0.1  # Comida en el centro
 
 # Lista para rastrear las celdas pintadas manualmente
-comida_celdas = [[5,10], [12,7]] #posiciones de comidas
+comida_celdas = [[5,8], [12,7]] #posiciones de comidas
+
+probabilidad_max_hc = 1
+tolerancia_hc = 0
 
 keep_espectativa_1 = []
 target = [[5,10], [0,0], [12,7], [0,0]]
@@ -57,13 +61,13 @@ class Animal(): #posicion inicial por defecto 0,0
         elif step == "arriba" and self.posy>0:
             self.posy -= 1
         
-        print(self.posx," ", self.posy," ", step)
+        #print(self.posx," ", self.posy," ", step)
         
         return [self.posx, self.posy, step]
 
     #calcula el movimiento basado en Hill Climbing
-    def mover_hill_climbing(self, probabilidad_max=1 #probabilidad de seguir Hill Climbing
-                                , tolerancia=0 #Tolerancia +- para considerar un valor dentro de la proxima escalada maxima
+    def mover_hill_climbing(self, probabilidad_max=probabilidad_max_hc #probabilidad de seguir Hill Climbing
+                                , tolerancia=tolerancia_hc #Tolerancia +- para considerar un valor dentro de la proxima escalada maxima
                                 ):
         """
         Movimiento Hill Climbing con probabilidad de explorar otras celdas
@@ -109,30 +113,28 @@ class Animal(): #posicion inicial por defecto 0,0
 
         # Encuentra el valor máximo de las posibles direcciones
         valor_mayor = max(valores.values())
-        print("Valores completos:", valores)
-        print("Valor mayor:", valor_mayor)
-        input()
+        #print("Valores completos:", valores)
+        #print("Valor mayor:", valor_mayor)
 
         # Filtra las direcciones dentro del rango de tolerancia
         opciones_cercanas = [
             key for key, valor in valores.items()
             if valor_mayor - tolerancia <= valor <= valor_mayor + tolerancia
         ]
-        print("Opciones cercanas al máximo:", opciones_cercanas)
-        input()
+        #print("Opciones cercanas al máximo:", opciones_cercanas)
 
         # Decide si elegir la opción máxima o explorar
         if random.random() < probabilidad_max:
             # Elige entre las mejores opciones (dentro del rango)
             key_mayor = random.choice(opciones_cercanas)
-            print("Decisión: Tomar una opción cercana al máximo.")
+            #print("Decisión: Tomar una opción cercana al máximo.")
         else:
             # Elige entre todas las opciones válidas aleatoriamente
             opciones_validas = [key for key, valor in valores.items() if valor != -1]
             key_mayor = random.choice(opciones_validas)
-            print("Decisión: Explorar otra opción válida.")
+            #print("Decisión: Explorar otra opción válida.")
         
-        print("Dirección elegida:", key_mayor)
+        #print("Dirección elegida:", key_mayor)
 
         # Mueve en la dirección seleccionada
         self.mover_a(key_mayor)
@@ -141,7 +143,7 @@ class Animal(): #posicion inicial por defecto 0,0
         """
         Movimiento basado en dead reckoning hacia la posición objetivo.
         """
-        print("dr")
+        #print("dr")
         if self.target_position is None:
             return  # No hay posición objetivo para moverse
 
@@ -316,7 +318,7 @@ def update_canvas(grid, canvas):
     for j,i in comida_celdas:
         x0, y0 = j * cell_size, i * cell_size #calcula las posiciones físicas segun el tamano de la malla
         x1, y1 = x0 + cell_size, y0 + cell_size
-        #print(x0,"",y0,"",x1,"",y1)
+        ##print(x0,"",y0,"",x1,"",y1)
         canvas.create_rectangle(x0, y0, x1, y1, fill="green", outline="")
 
     #ANIMAL
@@ -325,10 +327,11 @@ def update_canvas(grid, canvas):
         for j,i in conejo.actual():
             x0, y0 = j * cell_size, i * cell_size #calcula las posiciones físicas segun el tamano de la malla
             x1, y1 = x0 + cell_size, y0 + cell_size
-            #print(x0,"",y0,"",x1,"",y1)
+            ##print(x0,"",y0,"",x1,"",y1)
             canvas.create_rectangle(x0, y0, x1, y1, fill="blue", outline="")
     else:
-        print("No hay animel para dibujar")
+        pass
+        #print("No hay animel para dibujar")
 
 # Función para ejecutar la simulación paso a paso
 def run_simulation(hay_animal, movimiento, pos_inicial, iteraciones, mantener_expectativa_1):
@@ -338,7 +341,7 @@ def run_simulation(hay_animal, movimiento, pos_inicial, iteraciones, mantener_ex
     com = []
     distances = []  # Para almacenar las distancias durante la fase 3
 
-    print(f"Hay_animal: {hay_animal}")
+    #print(f"Hay_animal: {hay_animal}")
     if hay_animal:
         conejo.estoy_presente = True
         conejo.tipo = movimiento
@@ -358,7 +361,7 @@ def run_simulation(hay_animal, movimiento, pos_inicial, iteraciones, mantener_ex
             conejo.spiral_direction = 0
             conejo.spiral_count = 0
 
-        print(f"posx: {conejo.posx}, - posy: {conejo.posy}")
+        #print(f"posx: {conejo.posx}, - posy: {conejo.posy}")
     else:
         conejo.estoy_presente = False
 
@@ -366,7 +369,7 @@ def run_simulation(hay_animal, movimiento, pos_inicial, iteraciones, mantener_ex
     time_steps = 0  # Contador de pasos de tiempo
 
     while time_steps < iteraciones:
-        print("Máximo: ", grid.max(), " - Mínimo: ", grid.min())
+        #print("Máximo: ", grid.max(), " - Mínimo: ", grid.min())
 
         if hay_animal:
             conejo.mover()  # El método mover maneja el movimiento según conejo.tipo
@@ -385,25 +388,13 @@ def run_simulation(hay_animal, movimiento, pos_inicial, iteraciones, mantener_ex
                 keep_espectativa_1.append([com[0], com[1]])
 
 
-                print(f"El animal encontró la comida en la posición: {com}")
+                #print(f"El animal encontró la comida en la posición: {com}")
 
 
             else:
                 # No hay comida aquí
                 x, y = conejo.posx, conejo.posy  # Obtiene la posición actual del animal
                 grid[x, y] = 0  # Establece ese lugar en 0 de expectativa
-
-                # Verificar si el animal llegó a la posición esperada y no encontró comida
-                # Solo si el tipo de movimiento es 'dead_reckoning'
-                if conejo.tipo == "dead_reckoning":
-                    if [conejo.posx, conejo.posy] == conejo.target_position[0]:
-                        # Llegó al lugar esperado pero no encontró comida
-                        print("No encontró la comida en la posición esperada.")
-                        # Cambiar el tipo de movimiento a 'espiral'
-                # Si el animal no está utilizando 'dead_reckoning', continúa con su movimiento original
-                else:
-                    # El animal continúa moviéndose según su tipo de movimiento inicial
-                    pass  # No se realiza ninguna acción adicional
 
         # Mantiene la expectativa de la comida encontrada en 1
         if keep_espectativa_1 != [] and mantener_expectativa_1:
@@ -412,7 +403,7 @@ def run_simulation(hay_animal, movimiento, pos_inicial, iteraciones, mantener_ex
 
         update_canvas(grid, canvas)
         root.update()  # Actualizar la ventana
-        root.after(100)  # Pausar por 100 ms para visualizar los cambios
+        root.after(10)  # Pausar por 100 ms para visualizar los cambios
 
         if phase == 2:
             time_counter += 1
@@ -472,54 +463,70 @@ def run_simulation(hay_animal, movimiento, pos_inicial, iteraciones, mantener_ex
 ##########################-------------------------
 
 def prueba():
-    print(lista_movimientos.get())
-    print(animal_value.get())
+    #print(lista_movimientos.get())
+    #print(animal_value.get())
     try:
-        print(list(map(int, texto_pos_inicial.get().split(','))))
+        pass
+        #print(list(map(int, texto_pos_inicial.get().split(','))))
     except:
         pass
-    print("Posición inicial: ", texto_pos_inicial.get())
+    #print("Posición inicial: ", texto_pos_inicial.get())
 
-# Configuración de la ventana Tkinter
+# Interfaz gráfica
 root = Tk()
 root.title("Simulación de Difusión Manual")
 
+# Canvas principal
 canvas = Canvas(root, width=cols * cell_size, height=rows * cell_size, bg="white")
 canvas.pack()
 
+# Contenedor para los controles y parámetros (debajo del canvas)
+bottom_frame = Frame(root, padx=10, pady=10)
+bottom_frame.pack(fill=X, expand=True)
+
+# Frame izquierdo (dentro del bottom_frame)
+left_frame = Frame(bottom_frame, padx=10, pady=10)
+left_frame.pack(side=LEFT, fill=Y)
+
+# Frame derecho (dentro del bottom_frame)
+right_frame = Frame(bottom_frame, padx=10, pady=10)
+right_frame.pack(side=RIGHT, fill=Y)
+
+# Controles en el frame izquierdo
 # Check para activar o desactivar el animal
-animal_value = BooleanVar()  # Variable del check
-animal_value.set(True)  # Por defecto es True
-check_animal = ttk.Checkbutton(root, text="Animal", variable=animal_value)
+animal_value = BooleanVar()
+animal_value.set(True)
+check_animal = ttk.Checkbutton(left_frame, text="animal", variable=animal_value)
 check_animal.pack()
 
 # Para seleccionar el tipo de movimiento
-Label(root, text="Movimiento:").pack()
-lista_movimientos = ttk.Combobox(root, values=conejo.tipos_list)
+Label(left_frame, text="Movimiento:").pack()
+lista_movimientos = ttk.Combobox(left_frame, values=conejo.tipos_list)
 lista_movimientos.set(conejo.tipos_list[0])  # Por defecto tiene el primero de la lista
 lista_movimientos.pack()
 
 # Posición inicial del animal
 texto_pos_inicial = StringVar()
-Label(root, text="Posición inicial:").pack()
-posicion_inicial = ttk.Entry(root, textvariable=texto_pos_inicial)
-texto_pos_inicial.set("0,0")  # Posición inicial por defecto
+Label(left_frame, text="Posición inicial:").pack()
+posicion_inicial = ttk.Entry(left_frame, textvariable=texto_pos_inicial)
+texto_pos_inicial.set("0,0")  # posición inicial por defecto
 posicion_inicial.pack()
 
 # Número de iteraciones
 texto_iteraciones = StringVar()
-Label(root, text="Iteraciones:").pack()
-iteraciones = ttk.Entry(root, textvariable=texto_iteraciones)
-texto_iteraciones.set("800")  # Iteraciones por defecto
+Label(left_frame, text="Iteraciones:").pack()
+iteraciones = ttk.Entry(left_frame, textvariable=texto_iteraciones)
+texto_iteraciones.set("800")  # iteraciones por defecto
 iteraciones.pack()
 
 # Check para mantener expectativa 1
-expectativa_value = BooleanVar()  # Variable del check
-expectativa_value.set(True)  # Por defecto es True
-check_expectativa = ttk.Checkbutton(root, text="Mantener expectativa", variable=expectativa_value)
+expectativa_value = BooleanVar()
+expectativa_value.set(True)
+check_expectativa = ttk.Checkbutton(left_frame, text="Mantener expectativa", variable=expectativa_value)
 check_expectativa.pack()
 
-start_button = Button(root, text="Iniciar Simulación", command=lambda: run_simulation(
+# Botón para iniciar la simulación
+start_button = Button(left_frame, text="Iniciar Simulación", command=lambda: run_simulation(
     animal_value.get(),
     lista_movimientos.get(),
     list(map(int, posicion_inicial.get().split(','))),
@@ -527,7 +534,17 @@ start_button = Button(root, text="Iniciar Simulación", command=lambda: run_simu
     expectativa_value.get()))
 start_button.pack()
 
-boton_prueba = Button(root, text="Prueba", command=prueba)
+# Botón de prueba
+boton_prueba = Button(left_frame, text="prueba", command=prueba)
 boton_prueba.pack()
+
+# Labels centrados en el frame derecho
+Label(right_frame, text="Parámetros:", font=("Arial", 14, "bold")).pack(pady=10)
+
+Label(right_frame, text=f"expectativa_inicial_uniforme: {expectativa_inicial_uniforme}").pack(pady=5)
+Label(right_frame, text=f"difusion_rate: {diffusion_rate}").pack(pady=5)
+Label(right_frame, text=f"tamaño de la cuadrícula: {rows}x{cols}").pack(pady=5)
+Label(right_frame, text=f"Probabilidad HC: {probabilidad_max_hc}").pack(pady=5)
+Label(right_frame, text=f"Tolerancia HC: {tolerancia_hc}").pack(pady=5)
 
 root.mainloop()
